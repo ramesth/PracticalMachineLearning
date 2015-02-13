@@ -1,0 +1,113 @@
+Practical Machine Learning : Peer Assessment
+========================================================
+
+#### Execuitive summary
+
+This report is the outcome of the analysis performed for  Practical Machine learning course peer assignment.  The predictor is regarding the "manner" the 6 subjects carry out weight lifting exercises. The data used in this project comes from the site here [http://groupware.les.inf.puc-rio.br/har], and are representation of accelerometers readings on the belt, forearm, arm and dumbbell.  The results are represented by five character varibales  ABCDE. It is obviously falls into category of "supervised learning" in terms of machine learning exercise. 
+
+#### Loading, exploring and preprocessing of the data
+
+Let us prepare our environment by loading appropirate libraries. Also set your working directory (not shown here).
+
+```{r}
+library(randomForest);library(caret);library(randomForest) ;library(ElemStatLearn);library(rpart);library(rattle)
+set.seed(9875) ## so that results are reproducible
+
+```
+Next, let us download and load the data. It is assumed that files have been downloaded and are resding in the current working directory. 
+
+```{r}
+#file1 <- "pml-training.csv"
+#file2 <- "pml-testing.csv"
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile=file1)
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile=file2)
+
+training <- read.csv("pml-training.csv",row.names=1,na.strings=c("", "NA", "NULL"))
+testing <- read.csv("pml-testing.csv",row.names=1,na.strings=c("", "NA", "NULL"))
+
+```
+Next, let us explore structure of our data.
+```{r}
+## commented out in order to save space
+#str(training)
+#str(testing)
+```
+The structure commands (not run and shown here) reveal that there two many NAs and many unneeded variables. 
+Next step, removes the data containing NAs. In addition,  remove extraneous columns such as user_name, num_window, time_stamp etc . These  variables will not contribute to our analysis.
+```{r}
+training <- training[, colSums(is.na(training)) == 0] 
+testing <- testing[, colSums(is.na(testing)) == 0]
+training <- training[, c(7:59)] 
+testing <- testing[, c(7:59)] 
+# examine the number of rows and column each data set contains
+dim(training); 
+dim(testing)
+
+```
+#### Model Building
+
+Now we split provided training data into test (30%) and training (70%) data sets. When we are satisfied, we will apply our model to predict supplied "test" data.
+```{r}
+inTrain <- createDataPartition(y = training$classe, p=0.70, list=FALSE) 
+trainFinal <- training[inTrain,] 
+testFinal <- training[-inTrain,]
+
+```
+Next, it is time to select a model and train. first let us try rpart method
+
+```{r}
+modelFitRpart <- train(classe ~ ., method = "rpart", data = trainFinal)
+modelPredRpart <- predict(modelFitRpart, newdata=testFinal)
+```
+Next, let us evaluate how good is the model, and whether we need to modify or change our model.
+```{r}
+# verify the model performance
+
+confusionMatrix(modelPredRpart,testFinal$classe)
+```
+As can be seen that this has a very low acccuracy of 49.8. Hence let us use Random Forest with cross validation and preprocessing.
+```{r}
+modelFit <- train(classe ~ ., method = "rf", data = trainFinal,preProcess=c("center", "scale"), trControl = trainControl(method = "cv", number = 4))
+modelPred <- predict(modelFit, newdata=testFinal)
+
+
+```
+Next, let us evaluate how good is the chosen model, and whether we need to modify or change our model.
+```{r}
+# verify the model performance
+
+confusionMatrix(modelPred,testFinal$classe)
+
+```
+The model has accuracy of 99.3% which is very good for our purpose. 
+
+#### Out of sample Error
+
+For our model "out of sample error"" is 1-0.993=0.007
+
+#### Prediction Results
+
+This section will predict the desired results.
+
+```{r}
+predictions <- predict(modelFit,newdata=testing)
+predUsingTesting <- as.character(predictions) 
+predUsingTesting
+```
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predUsingTesting)
+```
+#### Conclusion  
+
+Since the accuracy with Rpart is very low, we discarded the first model.
+
+With accuracy of 99.29% , the Random Forest model prediction outcomes are B A B A A E D B A A B C B A E E A B B B.
